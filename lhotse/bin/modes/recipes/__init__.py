@@ -6,6 +6,7 @@ from .aishell3 import *
 from .aishell4 import *
 from .ali_meeting import *
 from .ami import *
+from .arabic import *
 from .aspire import *
 from .atcosim import *
 from .audio_mnist import *
