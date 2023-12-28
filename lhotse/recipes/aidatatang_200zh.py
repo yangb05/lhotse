@@ -48,13 +48,14 @@ def download_aidatatang_200zh(
     if completed_detector.is_file():
         logging.info(f"Skipping because {completed_detector} exists.")
         return corpus_dir
-    resumable_download(
-        f"{url}/{tar_name}", filename=tar_path, force_download=force_download
-    )
+    if not tar_path.is_file():
+        resumable_download(
+            f"{url}/{tar_name}", filename=tar_path, force_download=force_download
+        )
     shutil.rmtree(extracted_dir, ignore_errors=True)
     with tarfile.open(tar_path) as tar:
         safe_extract(tar, path=corpus_dir)
-
+    tar_path.unlink()
     wav_dir = extracted_dir / "corpus"
     for s in ["test", "dev", "train"]:
         d = wav_dir / s
@@ -62,6 +63,7 @@ def download_aidatatang_200zh(
         for sub_tar_name in os.listdir(d):
             with tarfile.open(d / sub_tar_name) as tar:
                 safe_extract(tar, path=d)
+            (d / sub_tar_name).unlink()
     completed_detector.touch()
 
     return corpus_dir
@@ -105,7 +107,7 @@ def prepare_aidatatang_200zh(
         desc="Process aidatatang audio, it takes about 2559 seconds.",
     ):
         # Generate a mapping: utt_id -> (audio_path, audio_info, speaker, text)
-        logging.info(f"Processing  prepare_aidatatang_200zh subset: {part}")
+        logging.info(f"Processing prepare_aidatatang_200zh subset: {part}")
         recordings = []
         supervisions = []
         wav_path = d / "corpus" / part
@@ -117,6 +119,7 @@ def prepare_aidatatang_200zh(
                 logging.warning(f"{audio_path} has no transcript. ")
                 continue
             text = transcript_dict[idx]
+            text = text.strip().replace(' ', '')
             if not audio_path.is_file():
                 logging.warning(f"No such file: {audio_path}")
                 continue
@@ -130,7 +133,7 @@ def prepare_aidatatang_200zh(
                 channel=0,
                 language="Chinese",
                 speaker=speaker,
-                text=text.strip(),
+                text=text,
             )
             supervisions.append(segment)
 

@@ -47,12 +47,14 @@ def download_thchs_30(
                 f"Skipping download {tar_name} because {completed_detector} exists."
             )
             continue
-        resumable_download(
-            f"{url}/{tar_name}", filename=tar_path, force_download=force_download
-        )
+        if not tar_path.is_file():
+            resumable_download(
+                f"{url}/{tar_name}", filename=tar_path, force_download=force_download
+            )
         shutil.rmtree(extracted_dir, ignore_errors=True)
         with tarfile.open(tar_path) as tar:
             safe_extract(tar, path=corpus_dir)
+        tar_path.unlink()
         completed_detector.touch()
 
     return corpus_dir
@@ -119,6 +121,7 @@ def prepare_thchs_30(
                 logging.warning(f"{audio_path} has no transcript.")
                 continue
             text = transcript_dict[idx]
+            text = text.strip().replace(' ', '')
             if not audio_path.is_file():
                 logging.warning(f"No such file: {audio_path}")
                 continue
@@ -132,7 +135,7 @@ def prepare_thchs_30(
                 channel=0,
                 language="Chinese",
                 speaker=speaker,
-                text=text.strip(),
+                text=text,
             )
             supervisions.append(segment)
 

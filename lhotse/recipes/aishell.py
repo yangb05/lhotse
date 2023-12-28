@@ -65,17 +65,20 @@ def download_aishell(
                 f"Skipping download of {tar_name} because {completed_detector} exists."
             )
             continue
-        resumable_download(
-            f"{url}/{tar_name}", filename=tar_path, force_download=force_download
-        )
+        if not tar_path.is_file():
+            resumable_download(
+                f"{url}/{tar_name}", filename=tar_path, force_download=force_download
+            )
         shutil.rmtree(extracted_dir, ignore_errors=True)
         with tarfile.open(tar_path) as tar:
             safe_extract(tar, path=corpus_dir)
+        tar_path.unlink()
         if tar_name == dataset_tar_name:
             wav_dir = extracted_dir / "wav"
             for sub_tar_name in os.listdir(wav_dir):
                 with tarfile.open(wav_dir / sub_tar_name) as tar:
                     safe_extract(tar, path=wav_dir)
+                (wav_dir / sub_tar_name).unlink()
         completed_detector.touch()
 
     return corpus_dir
@@ -122,6 +125,7 @@ def prepare_aishell(
                 logging.warning(f"{audio_path} has no transcript.")
                 continue
             text = transcript_dict[idx]
+            text = text.strip().replace(' ', '')
             if not audio_path.is_file():
                 logging.warning(f"No such file: {audio_path}")
                 continue
@@ -135,7 +139,7 @@ def prepare_aishell(
                 channel=0,
                 language="Chinese",
                 speaker=speaker,
-                text=text.strip(),
+                text=text,
             )
             supervisions.append(segment)
 

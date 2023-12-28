@@ -58,12 +58,13 @@ def download_ali_meeting(
     ]
     for tar_name in dataset_tar_names:
         tar_path = target_dir / tar_name
-        resumable_download(
-            f"{url}/{tar_name}", filename=tar_path, force_download=force_download
-        )
+        if not tar_path.is_file():
+            resumable_download(
+                f"{url}/{tar_name}", filename=tar_path, force_download=force_download
+            )
         with tarfile.open(tar_path) as tar:
             safe_extract(tar, path=target_dir)
-
+        tar_path.unlink()
     return target_dir
 
 
