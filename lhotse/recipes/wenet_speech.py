@@ -34,6 +34,30 @@ from lhotse.utils import Pathlike, add_durations
 WETNET_SPEECH_PARTS = ("L", "M", "S", "DEV", "TEST_NET", "TEST_MEETING")
 
 
+def too_short_or_too_long(duration, id):
+    if duration < 1.0 or duration > 20.0:
+        logging.warning(
+            f"Exclude segment with ID {id} from training. Duration: {duration}"
+        )
+        return True
+    return False
+
+
+def preprocess(text):
+    text = text.strip()
+    text = text.upper()
+    # remove space
+    text = text.replace(' ', '')
+    # remove <sil>
+    text = text.replace('<sil>', '')
+    # remove puncs
+    punctuation = r"""!"#$%&'()*+,-./:;<=>?@[\]^_`{|}~“”？，！【】（）、。：；’‘……￥·"""
+    dicts={i:'' for i in punctuation}
+    punc_table=str.maketrans(dicts)
+    text=text.translate(punc_table)
+    return text
+
+
 def prepare_wenet_speech(
     corpus_dir: Pathlike,
     dataset_parts: Union[str, Sequence[str]] = "all",
@@ -129,6 +153,11 @@ def parse_utterance(
     for sub in subsets:
         segments[sub] = []
     for seg in audio["segments"]:
+        duration=add_durations(
+                seg["end_time"], -seg["begin_time"], sampling_rate=sampling_rate
+            ),
+        if sub in ['L', 'M', 'S'] and too_short_or_too_long(duration, seg["sid"]):
+                continue
         segment = SupervisionSegment(
             id=seg["sid"],
             recording_id=audio["aid"],
@@ -137,7 +166,7 @@ def parse_utterance(
                 seg["end_time"], -seg["begin_time"], sampling_rate=sampling_rate
             ),
             language="Chinese",
-            text=seg["text"].strip(),
+            text=preprocess(seg["text"].strip()),
         )
         for sub in seg["subsets"]:
             if sub in subsets:
