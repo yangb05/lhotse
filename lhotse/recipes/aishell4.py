@@ -29,6 +29,7 @@ is assigned a unique global_spk_id.
 import logging
 import re
 import tarfile
+import subprocess
 from collections import defaultdict
 from pathlib import Path
 from typing import Dict, Optional, Union
@@ -130,6 +131,7 @@ def prepare_aishell4(
     corpus_dir: Pathlike,
     output_dir: Optional[Pathlike] = None,
     normalize_text: bool = False,
+    save_mono: bool = False,
 ) -> Dict[str, Dict[str, Union[RecordingSet, SupervisionSet]]]:
     """
     Returns the manifests which consist of the Recordings and Supervisions
@@ -153,12 +155,14 @@ def prepare_aishell4(
 
     global_spk_id = {}
     for part in ["train_L", "train_M", "train_S", "test"]:
+        if save_mono:
+            output_dir_mono = output_dir / "aishell4_mono" / part
+            output_dir_mono.mkdir(parents=True, exist_ok=True)
         recordings = []
         supervisions = []
         wav_path = corpus_dir / part / "wav"
         for audio_path in wav_path.rglob("*.flac"):
             idx = audio_path.stem
-
             try:
                 tg = textgrid.TextGrid.fromFile(
                     f"{corpus_dir}/{part}/TextGrid/{idx}.TextGrid"
@@ -168,8 +172,15 @@ def prepare_aishell4(
                     f"{idx} has annotation issues. Skipping this recording."
                 )
                 continue
-
-            recording = Recording.from_file(audio_path)
+            if save_mono:
+                # use sox to extract first channel of the wav file
+                audio_path_mono = output_dir_mono / audio_path.name
+                if not audio_path_mono.is_file():
+                    cmd = f"sox {audio_path} -c 1 {audio_path_mono}"
+                    subprocess.run(cmd, shell=True, check=True)
+                recording = Recording.from_file(audio_path_mono)
+            else:
+                recording = Recording.from_file(audio_path)
             recordings.append(recording)
             for tier in tg.tiers:
                 local_spk_id = tier.name
