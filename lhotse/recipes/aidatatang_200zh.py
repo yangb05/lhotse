@@ -74,8 +74,8 @@ def too_short_or_too_long(segment):
         logging.warning(
             f"Exclude segment with ID {segment.id} from training. Duration: {segment.duration}"
         )
-        return False
-    return True
+        return True
+    return False
 
 
 def preprocess(text):
