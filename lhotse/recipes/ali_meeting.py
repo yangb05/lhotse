@@ -33,6 +33,30 @@ from lhotse.supervision import SupervisionSegment, SupervisionSet
 from lhotse.utils import Pathlike, is_module_available, resumable_download, safe_extract
 
 
+def too_short_or_too_long(duration, id):
+    if duration < 1.0 or duration > 20.0:
+        logging.warning(
+            f"Exclude segment with ID {id} from training. Duration: {duration}"
+        )
+        return True
+    return False
+
+
+def preprocess(text):
+    text = text.strip()
+    text = text.upper()
+    # remove space
+    text = text.replace(' ', '')
+    # remove <sil>
+    text = text.replace('<sil>', '')
+    # remove puncs
+    punctuation = r"""!"#$%&'()*+,-./:;<=>?@[\]^_`{|}~“”？，！【】（）、。：；’‘……￥·"""
+    dicts={i:'' for i in punctuation}
+    punc_table=str.maketrans(dicts)
+    text=text.translate(punc_table)
+    return text
+
+
 def download_ali_meeting(
     target_dir: Pathlike = ".",
     force_download: Optional[bool] = False,
@@ -189,6 +213,9 @@ def prepare_ali_meeting(
                         start = interval.minTime
                         end = interval.maxTime
                         text = interval.mark
+                        duration=round(end - start, 4)
+                        if 'Train' in part and too_short_or_too_long(duration, f"{session_id}-{spk_id}-{i}"):
+                            continue
                         segment = SupervisionSegment(
                             id=f"{session_id}-{spk_id}-{i}",
                             recording_id=recording.id,
@@ -200,9 +227,9 @@ def prepare_ali_meeting(
                             language="Chinese",
                             speaker=spk_id,
                             gender=gender,
-                            text=normalize_text_alimeeting(
+                            text=preprocess(normalize_text_alimeeting(
                                 text.strip(), normalize=normalize_text
-                            ),
+                            )),
                         )
                         supervisions.append(segment)
 
