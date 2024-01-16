@@ -71,7 +71,7 @@ def text_normalize(line: str) -> str:
 
 
 def too_short_or_too_long(duration):
-    if duration.duration < 1.0 or duration.duration > 20.0:
+    if duration < 1.0 or duration > 20.0:
         logging.warning(
             f"Exclude segment with from training. Duration: {duration}"
         )
