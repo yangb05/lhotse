@@ -156,7 +156,7 @@ def parse_utterance(
         duration=add_durations(
                 seg["end_time"], -seg["begin_time"], sampling_rate=sampling_rate
             ),
-        if sub in ['L', 'M', 'S'] and too_short_or_too_long(duration, seg["sid"]):
+        if sub in ['L', 'M', 'S'] and too_short_or_too_long(duration[0], seg["sid"]):
                 continue
         segment = SupervisionSegment(
             id=seg["sid"],
@@ -172,3 +172,7 @@ def parse_utterance(
             if sub in subsets:
                 segments[sub].append(segment)
     return recording, segments
+
+
+if __name__ == "__main__":
+    prepare_wenet_speech("/mgData2/yangb/icefall/egs/wenetspeech/ASR/download/WenetSpeech", "/mgData2/yangb/icefall/egs/wenetspeech/ASR/data/manifests")
