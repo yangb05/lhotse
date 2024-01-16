@@ -69,6 +69,30 @@ def download_aidatatang_200zh(
     return corpus_dir
 
 
+def too_short_or_too_long(segment):
+    if segment.duration < 1.0 or segment.duration > 20.0:
+        logging.warning(
+            f"Exclude segment with ID {segment.id} from training. Duration: {segment.duration}"
+        )
+        return False
+    return True
+
+
+def preprocess(text):
+    text = text.strip()
+    text = text.upper()
+    # remove space
+    text = text.replace(' ', '')
+    # remove <sil>
+    text = text.replace('<sil>', '')
+    # remove puncs
+    punctuation = r"""!"#$%&'()*+,-./:;<=>?@[\]^_`{|}~“”？，！【】（）、。：；’‘……￥·"""
+    dicts={i:'' for i in punctuation}
+    punc_table=str.maketrans(dicts)
+    text=text.translate(punc_table)
+    return text
+    
+
 def prepare_aidatatang_200zh(
     corpus_dir: Pathlike, output_dir: Optional[Pathlike] = None
 ) -> Dict[str, Dict[str, Union[RecordingSet, SupervisionSet]]]:
@@ -95,9 +119,9 @@ def prepare_aidatatang_200zh(
     with open(transcript_path, "r", encoding="utf-8") as f:
         for line in f.readlines():
             idx_transcript = line.split()
-            content = " ".join(idx_transcript[1:])
+            content = "".join(idx_transcript[1:])
             content = content.replace("Ａ", "A")
-            content = content.upper()
+            content = preprocess(content)
             transcript_dict[idx_transcript[0]] = content
     manifests = defaultdict(dict)
     dataset_parts = ["dev", "test", "train"]
@@ -119,11 +143,12 @@ def prepare_aidatatang_200zh(
                 logging.warning(f"{audio_path} has no transcript. ")
                 continue
             text = transcript_dict[idx]
-            text = text.strip().replace(' ', '')
             if not audio_path.is_file():
                 logging.warning(f"No such file: {audio_path}")
                 continue
             recording = Recording.from_file(audio_path)
+            if 'train' in part and too_short_or_too_long(recording):
+                continue
             recordings.append(recording)
             segment = SupervisionSegment(
                 id=idx,
