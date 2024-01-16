@@ -70,6 +70,30 @@ def text_normalize(line: str) -> str:
     return line
 
 
+def too_short_or_too_long(duration):
+    if duration.duration < 1.0 or duration.duration > 20.0:
+        logging.warning(
+            f"Exclude segment with from training. Duration: {duration}"
+        )
+        return True
+    return False
+
+
+def preprocess(text):
+    text = text.strip()
+    text = text.upper()
+    # remove space
+    text = text.replace(' ', '')
+    # remove <sil>
+    text = text.replace('<sil>', '')
+    # remove puncs
+    punctuation = r"""!"#$%&'()*+,-./:;<=>?@[\]^_`{|}~“”？，！【】（）、。：；’‘……￥·"""
+    dicts={i:'' for i in punctuation}
+    punc_table=str.maketrans(dicts)
+    text=text.translate(punc_table)
+    return text
+
+
 def download_aishell4(
     target_dir: Pathlike = ".",
     force_download: Optional[bool] = False,
@@ -147,7 +171,6 @@ def prepare_aishell4(
 
             recording = Recording.from_file(audio_path)
             recordings.append(recording)
-
             for tier in tg.tiers:
                 local_spk_id = tier.name
                 key = (idx, local_spk_id)
@@ -159,6 +182,9 @@ def prepare_aishell4(
                         start = interval.minTime
                         end = interval.maxTime
                         text = interval.mark
+                        duration=round(end - start, 4)
+                        if 'train' in part and too_short_or_too_long(duration):
+                            continue
                         segment = SupervisionSegment(
                             id=f"{idx}-{spk_id}-{j}",
                             recording_id=idx,
@@ -167,12 +193,12 @@ def prepare_aishell4(
                             channel=recording.channel_ids,
                             language="Chinese",
                             speaker=spk_id,
-                            text=text_normalize(text.strip())
+                            text=preprocess(text_normalize(text.strip()))
                             if normalize_text
                             else text.strip(),
                         )
                         supervisions.append(segment)
-
+            
         recording_set = RecordingSet.from_recordings(recordings)
         supervision_set = SupervisionSet.from_segments(supervisions)
         recording_set, supervision_set = fix_manifests(recording_set, supervision_set)
