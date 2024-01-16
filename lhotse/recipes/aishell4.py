@@ -70,10 +70,10 @@ def text_normalize(line: str) -> str:
     return line
 
 
-def too_short_or_too_long(duration):
+def too_short_or_too_long(duration, id):
     if duration < 1.0 or duration > 20.0:
         logging.warning(
-            f"Exclude segment with from training. Duration: {duration}"
+            f"Exclude segment with ID {id} from training. Duration: {duration}"
         )
         return True
     return False
@@ -183,7 +183,7 @@ def prepare_aishell4(
                         end = interval.maxTime
                         text = interval.mark
                         duration=round(end - start, 4)
-                        if 'train' in part and too_short_or_too_long(duration):
+                        if 'train' in part and too_short_or_too_long(duration, f"{idx}-{spk_id}-{j}"):
                             continue
                         segment = SupervisionSegment(
                             id=f"{idx}-{spk_id}-{j}",
