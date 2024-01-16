@@ -16,9 +16,15 @@ __all__ = ["aishell4"]
     default=False,
     help="Conduct text normalization (remove punctuation, uppercase, etc.)",
 )
-def aishell4(corpus_dir: Pathlike, output_dir: Pathlike, normalize_text: bool):
+@click.option(
+    "--save-mono",
+    is_flag=True,
+    default=False,
+    help="save single channel",
+)
+def aishell4(corpus_dir: Pathlike, output_dir: Pathlike, normalize_text: bool, save_mono: bool):
     """AISHELL-4 data preparation."""
-    prepare_aishell4(corpus_dir, output_dir=output_dir, normalize_text=normalize_text)
+    prepare_aishell4(corpus_dir, output_dir=output_dir, normalize_text=normalize_text, save_mono=save_mono)
 
 
 @download.command(context_settings=dict(show_default=True))
