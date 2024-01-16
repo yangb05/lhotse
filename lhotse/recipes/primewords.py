@@ -57,6 +57,30 @@ def download_primewords(
     return corpus_dir
 
 
+def too_short_or_too_long(segment):
+    if segment.duration < 1.0 or segment.duration > 20.0:
+        logging.warning(
+            f"Exclude segment with ID {segment.id} from training. Duration: {segment.duration}"
+        )
+        return True
+    return False
+
+
+def preprocess(text):
+    text = text.strip()
+    text = text.upper()
+    # remove space
+    text = text.replace(' ', '')
+    # remove <sil>
+    text = text.replace('<sil>', '')
+    # remove puncs
+    punctuation = r"""!"#$%&'()*+,-./:;<=>?@[\]^_`{|}~“”？，！【】（）、。：；’‘……￥·"""
+    dicts={i:'' for i in punctuation}
+    punc_table=str.maketrans(dicts)
+    text=text.translate(punc_table)
+    return text
+
+
 def prepare_primewords(
     corpus_dir: Pathlike, output_dir: Optional[Pathlike] = None
 ) -> Dict[str, Dict[str, Union[RecordingSet, SupervisionSet]]]:
@@ -80,7 +104,7 @@ def prepare_primewords(
             content = utt["text"]
             uttid = utt["file"].split(".")[0]
             user_id = utt["user_id"]
-            transcript_dict[uttid] = content
+            transcript_dict[uttid] = preprocess(content)
             speaker_dict[uttid] = user_id
 
     manifests = defaultdict(dict)
@@ -94,7 +118,6 @@ def prepare_primewords(
         supervisions = []
         wav_path = corpus_dir / "primewords_md_2018_set1" / "audio_files"
         for audio_path in wav_path.rglob("**/*.wav"):
-
             idx = audio_path.stem
             speaker = speaker_dict[idx]
             if idx not in transcript_dict:
@@ -102,11 +125,12 @@ def prepare_primewords(
                 logging.warning(f"{audio_path} has no transcript.")
                 continue
             text = transcript_dict[idx]
-            text = text.strip().replace(' ', '')
             if not audio_path.is_file():
                 logging.warning(f"No such file: {audio_path}")
                 continue
             recording = Recording.from_file(audio_path)
+            if 'train' in part and too_short_or_too_long(recording):
+                continue
             recordings.append(recording)
             segment = SupervisionSegment(
                 id=idx,
