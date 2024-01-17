@@ -72,6 +72,30 @@ def text_normalize(line: str):
     return line
 
 
+def too_short_or_too_long(segment):
+    if segment.duration < 1.0 or segment.duration > 20.0:
+        logging.warning(
+            f"Exclude segment with ID {segment.id} from training. Duration: {segment.duration}"
+        )
+        return True
+    return False
+
+
+def preprocess(text):
+    text = text.strip()
+    text = text.upper()
+    # remove space
+    text = text.replace(' ', '')
+    # remove <sil>
+    text = text.replace('<sil>', '')
+    # remove puncs
+    punctuation = r"""!"#$%&'()*+,-./:;<=>?@[\]^_`{|}~“”？，！【】（）、。：；’‘……￥·"""
+    dicts={i:'' for i in punctuation}
+    punc_table=str.maketrans(dicts)
+    text=text.translate(punc_table)
+    return text
+
+
 def download_magicdata(
     target_dir: Pathlike = ".",
     force_download: bool = False,
@@ -144,7 +168,7 @@ def prepare_magicdata(
                     continue
                 idx_ = idx_transcript[0].split(".")[0]
                 content = " ".join(idx_transcript[2:])
-                content = text_normalize(content)
+                content = preprocess(text_normalize(content))
                 transcript_dict[idx_] = content
 
     manifests = defaultdict(dict)
@@ -170,6 +194,8 @@ def prepare_magicdata(
                 logging.warning(f"No such file: {audio_path}")
                 continue
             recording = Recording.from_file(audio_path)
+            if 'train' in part and too_short_or_too_long(recording):
+                continue
             recordings.append(recording)
             segment = SupervisionSegment(
                 id=idx,
@@ -179,7 +205,7 @@ def prepare_magicdata(
                 channel=0,
                 language="Chinese",
                 speaker=speaker,
-                text=text.strip(),
+                text=text,
             )
             supervisions.append(segment)
 

@@ -99,7 +99,6 @@ def preprocess(text):
     return text
 
 
-
 def prepare_thchs_30(
     corpus_dir: Pathlike, output_dir: Optional[Pathlike] = None
 ) -> Dict[str, Dict[str, Union[RecordingSet, SupervisionSet]]]:
