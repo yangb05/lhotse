@@ -57,15 +57,40 @@ def download_stcmds(
         if completed_detector.is_file():
             logging.info(f"Skipping download of because {completed_detector} exists.")
             continue
-        resumable_download(
-            f"{url}/{tar_name}", filename=tar_path, force_download=force_download
-        )
+        if not tar_path.is_file():
+            resumable_download(
+                f"{url}/{tar_name}", filename=tar_path, force_download=force_download
+            )
         shutil.rmtree(extracted_dir, ignore_errors=True)
         with tarfile.open(tar_path) as tar:
             safe_extract(tar, path=corpus_dir)
         completed_detector.touch()
 
     return corpus_dir
+
+
+def too_short_or_too_long(segment):
+    if segment.duration < 1.0 or segment.duration > 20.0:
+        logging.warning(
+            f"Exclude segment with ID {segment.id} from training. Duration: {segment.duration}"
+        )
+        return True
+    return False
+
+
+def preprocess(text):
+    text = text.strip()
+    text = text.upper()
+    # remove space
+    text = text.replace(' ', '')
+    # remove <sil>
+    text = text.replace('<sil>', '')
+    # remove puncs
+    punctuation = r"""!"#$%&'()*+,-./:;<=>?@[\]^_`{|}~“”？，！【】（）、。：；’‘……￥·"""
+    dicts={i:'' for i in punctuation}
+    punc_table=str.maketrans(dicts)
+    text=text.translate(punc_table)
+    return text
 
 
 def prepare_stcmds(
@@ -90,7 +115,7 @@ def prepare_stcmds(
         logging.info(f"processing stcmds transcript  {text_path}")
         with open(text_path, "r", encoding="utf-8") as f:
             for line in f:
-                line = text_normalize(line)
+                line = preprocess(text_normalize(line))
                 transcript_dict[idx] = line
 
     manifests = defaultdict(dict)
@@ -114,6 +139,8 @@ def prepare_stcmds(
                 logging.warning(f"No such file: {audio_path}")
                 continue
             recording = Recording.from_file(audio_path)
+            if 'train' in part and too_short_or_too_long(recording):
+                continue
             recordings.append(recording)
             segment = SupervisionSegment(
                 id=idx,
@@ -123,7 +150,7 @@ def prepare_stcmds(
                 channel=0,
                 language="Chinese",
                 speaker=speaker,
-                text=text.strip(),
+                text=text,
             )
             supervisions.append(segment)
 

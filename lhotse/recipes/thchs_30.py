@@ -36,7 +36,7 @@ def download_thchs_30(
     url = f"{base_url}/18"
     target_dir = Path(target_dir)
     target_dir.mkdir(parents=True, exist_ok=True)
-    corpus_dir = target_dir / "thchs"
+    corpus_dir = target_dir / "thchs30"
     dataset_tar_name = "data_thchs30.tgz"
     for tar_name in [dataset_tar_name]:
         tar_path = target_dir / tar_name
