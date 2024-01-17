@@ -87,6 +87,30 @@ def text_normalize(line: str) -> str:
     return line
 
 
+def too_short_or_too_long(segment):
+    if segment.duration < 1.0 or segment.duration > 20.0:
+        logging.warning(
+            f"Exclude segment with ID {segment.id} from training. Duration: {segment.duration}"
+        )
+        return True
+    return False
+
+
+def preprocess(text):
+    text = text.strip()
+    text = text.upper()
+    # remove space
+    text = text.replace(' ', '')
+    # remove <sil>
+    text = text.replace('<sil>', '')
+    # remove puncs
+    punctuation = r"""!"#$%&'()*+,-./:;<=>?@[\]^_`{|}~“”？，！【】（）、。：；’‘……￥·"""
+    dicts={i:'' for i in punctuation}
+    punc_table=str.maketrans(dicts)
+    text=text.translate(punc_table)
+    return text
+
+
 def prepare_aishell2(
     corpus_dir: Pathlike,
     output_dir: Optional[Pathlike] = None,
@@ -127,13 +151,14 @@ def prepare_aishell2(
             for line in f:
                 idx_transcript = line.split()
                 content = " ".join(idx_transcript[1:])
-                content = text_normalize(content)
+                content = preprocess(text_normalize(content))
                 transcript_dict[idx_transcript[0]] = content
 
         supervisions = []
-        recordings = RecordingSet.from_dir(
-            path=wav_path, pattern="*.wav", num_jobs=num_jobs
-        )
+        recordings = []
+        # recordings = RecordingSet.from_dir(
+        #     path=wav_path, pattern="*.wav", num_jobs=num_jobs
+        # )
 
         for audio_path in wav_path.rglob("**/*.wav"):
 
@@ -147,16 +172,19 @@ def prepare_aishell2(
             if not audio_path.is_file():
                 logging.warning(f"No such file: {audio_path}")
                 continue
-
+            recording = Recording.from_file(audio_path)
+            if 'train' in part and too_short_or_too_long(recording):
+                continue
+            recordings.append(recording)
             segment = SupervisionSegment(
                 id=idx,
                 recording_id=idx,
                 start=0.0,
-                duration=recordings.duration(idx),
+                duration=recording.duration,
                 channel=0,
                 language="Chinese",
                 speaker=speaker,
-                text=text.strip(),
+                text=text,
             )
             supervisions.append(segment)
 
