@@ -33,6 +33,30 @@ def text_normalize(line: str) -> str:
     return line
 
 
+def too_short_or_too_long(segment):
+    if segment.duration < 1.0 or segment.duration > 20.0:
+        logging.warning(
+            f"Exclude segment with ID {segment.id} from training. Duration: {segment.duration}"
+        )
+        return True
+    return False
+
+
+def preprocess(text):
+    text = text.strip()
+    text = text.upper()
+    # remove space
+    text = text.replace(' ', '')
+    # remove <sil>
+    text = text.replace('<sil>', '')
+    # remove puncs
+    punctuation = r"""!"#$%&'()*+,-./:;<=>?@[\]^_`{|}~“”？，！【】（）、。：；’‘……￥·"""
+    dicts={i:'' for i in punctuation}
+    punc_table=str.maketrans(dicts)
+    text=text.translate(punc_table)
+    return text
+
+
 def prepare_kespeech(
     corpus_dir: Pathlike,
     output_dir: Optional[Pathlike],
@@ -92,6 +116,9 @@ def prepare_kespeech(
                 if result is None:
                     continue
                 recording, segment = result
+                if 'train' in part and too_short_or_too_long(recording):
+                    continue
+                segment.text = preprocess(segment.text)
                 recordings.append(recording)
                 supervisions.append(segment)
 
