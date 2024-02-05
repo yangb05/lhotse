@@ -38,38 +38,39 @@ EXCLUDED_PARTS = (
 )
 
 RU_OPEN_STT_TRAIN_PARTS = (
-    "asr_calls_2_val",
     "private_buriy_audiobooks_2",
     "public_lecture_1",
     "public_series_1",
-    "public_speech_manifest",
+    "public_speech",
     "public_youtube1120",
     "public_youtube1120_hq",
     "public_youtube700",
     "radio_2",
-    "radio_pspeech_sample_manifest",
-    "radio_v4_add_manifest",
-    "radio_v4_manifest",
-    "tts_russian_addresses_rhvoice_4voices",
+    "radio_v4_add",
+    "radio_v4",
+    "tts_russian_addresses_rhvoice_4voices"
 )
 
-RU_OPEN_STT_DEV_PARTS = ("buriy_audiobooks_2_val",)
+RU_OPEN_STT_DEV_PARTS = ("asr_calls_2_val",)
 
-RU_OPEN_STT_TEST_PARTS = ("public_youtube700_val",)
+RU_OPEN_STT_TEST_PARTS = (
+    "buriy_audiobooks_2_val",
+    "public_youtube700_val",
+    "common_voice_11_0_ru_test"
+)
 
 
 def _read_raw_manifest(corpus_dir):
-    """Build a list of wav dir and corresponding txt dir pairs from a list
-    of raw manifests.
+    """Build a list of all the wav files.
 
     :param corpus_dir: Path, dir of the ru_open_stt data.
-    :return: a list of all the wav and corresponding txt absolute dir pairs of the whole dataset.
+    :return: a list of all the wav and corresponding text pairs of the whole dataset.
     """
-    print(f"->Start reading raw manifests...")
+    print(f"Start reading raw manifests...")
     raw_train_manifest, raw_dev_manifest, raw_test_manifest = set(), set(), set()
-    raw_manifest_dir = corpus_dir / "manifests"
+    raw_manifest_dir = corpus_dir / "wavedata"
     for manifest in sorted(raw_manifest_dir.iterdir()):
-        m_name = str(manifest).split("/")[-1].split(".")[0]
+        m_name = manifest.stem
         if m_name in RU_OPEN_STT_DEV_PARTS:
             target = raw_dev_manifest
         elif m_name in RU_OPEN_STT_TEST_PARTS:
@@ -79,17 +80,23 @@ def _read_raw_manifest(corpus_dir):
         else:
             continue
         print(f"----Start reading {m_name}...")
-        with open(manifest, "r", encoding="utf-8") as f:
+        text_info = {}
+        with open(manifest / "text", "r", encoding='utf-8') as f:
             for line in f.readlines():
-                relative_wav = line.split(",")[0]
-                absolute_wav = corpus_dir / "untar" / relative_wav
-                assert absolute_wav.is_file(), f"{absolute_wav} is not exist!"
-                if not absolute_wav.with_suffix(".txt").is_file():
+                content = line.split(maxsplit=1)
+                if len(content) == 1:
                     continue
-                target.add(absolute_wav)
+                text_info[content[0]] = content[1]
+        with open(manifest / 'wav.scp', "r", encoding="utf-8") as f:
+            for line in f.readlines():
+                w_key, wav = line.split()
+                assert Path(wav).is_file(), f"{wav} not exists!"
+                if not w_key in text_info:
+                    continue
+                target.add((w_key, wav, text_info[w_key]))
         print(f"----Finish reading {m_name}!")
     print(
-        f"<-Finish reading raw manifests, total samples: {len(raw_train_manifest) + len(raw_dev_manifest) + len(raw_test_manifest)}!"
+        f"Finish reading raw manifests, total samples: {len(raw_train_manifest) + len(raw_dev_manifest) + len(raw_test_manifest)}!"
     )
     return raw_train_manifest, raw_dev_manifest, raw_test_manifest
 
@@ -150,25 +157,33 @@ def prepare_ru_open_stt(
     return manifests
 
 
+def preprocess(text):
+    text = text.strip()
+    text = text.lower()
+    # remove puncs
+    punctuation = r"""!"#$%&'()*+,-./:;<=>?@[\]^_`{|}~“”？，！【】（）、。：；’‘……￥·"""
+    dicts = {i:'' for i in punctuation}
+    punc_table = str.maketrans(dicts)
+    text = text.translate(punc_table)
+    # remove whitespace
+    text = ' '.join(text.split())
+    return text
+
+
 def parse_utterance(
-    wav_dir: Tuple,
+    utt: Tuple,
 ) -> Tuple[Recording, Dict[str, List[SupervisionSegment]]]:
-    text_dir = wav_dir.with_suffix(".txt")
-    recording_id = str(wav_dir).split(".")[0].split("/")[-4:]
-    recording_id = "_".join(recording_id)
     try:
-        recording = Recording.from_file(wav_dir, recording_id=recording_id, force_opus_sampling_rate=16000)
+        recording = Recording.from_file(utt[1], recording_id=utt[0], force_opus_sampling_rate=16000)
         validate_recording(recording)
-        with open(text_dir, "r", encoding="utf-8") as f:
-            text = f.read().strip()
         segment = SupervisionSegment(
-            id=recording_id,
-            recording_id=recording_id,
+            id=utt[0],
+            recording_id=utt[0],
             start=0.0,
             duration=recording.duration,
             channel=0,
             language="Russian",
-            text=text,
+            text=preprocess(utt[2]),
         )
         validate_supervision(segment)
         return recording, segment
@@ -177,6 +192,6 @@ def parse_utterance(
 
 
 if __name__ == "__main__":
-    corpus_dir = Path("/mgData2/yangb/data/ru_open_stt")
-    output_dir = Path("/mgData2/yangb/icefall/egs/ru_open_stt/ASR/data/test_manifests")
-    prepare_ru_open_stt(corpus_dir=corpus_dir, output_dir=output_dir, num_jobs=20)
+    corpus_dir = Path("/mgData2/yangb/icefall/egs/ru_open_stt/ASR/download/ru_open_stt")
+    output_dir = Path("/mgData2/yangb/icefall/egs/ru_open_stt/ASR/data/manifests")
+    prepare_ru_open_stt(corpus_dir=corpus_dir, output_dir=output_dir, num_jobs=80)
