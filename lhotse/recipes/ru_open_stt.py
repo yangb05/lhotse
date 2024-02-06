@@ -13,6 +13,7 @@ The main purpose of the dataset is to train speech-to-text models.
 See https://learn.microsoft.com/en-us/azure/open-datasets/dataset-open-speech-text?tabs=azure-storage for more details about Russian Open Speech To Text
 """
 
+from itertools import repeat
 from collections import defaultdict
 from concurrent.futures import ProcessPoolExecutor
 from pathlib import Path
@@ -53,10 +54,16 @@ RU_OPEN_STT_TRAIN_PARTS = (
 
 RU_OPEN_STT_DEV_PARTS = ("asr_calls_2_val",)
 
-RU_OPEN_STT_TEST_PARTS = (
-    "buriy_audiobooks_2_val",
+RU_OPEN_STT_TEST_YOUTUBE_PARTS = (
     "public_youtube700_val",
+)
+
+RU_OPEN_STT_TEST_COMMON_VOICE_PARTS = (
     "common_voice_11_0_ru_test"
+)
+
+RU_OPEN_STT_TEST_BURIY_PARTS = (
+    "buriy_audiobooks_2_val",
 )
 
 
@@ -67,16 +74,20 @@ def _read_raw_manifest(corpus_dir):
     :return: a list of all the wav and corresponding text pairs of the whole dataset.
     """
     print(f"Start reading raw manifests...")
-    raw_train_manifest, raw_dev_manifest, raw_test_manifest = set(), set(), set()
+    raw_train_manifest, raw_dev_manifest, raw_test_youtube_manifest, raw_test_common_voice_manifest, raw_test_buriy_manifest = set(), set(), set(), set(), set()
     raw_manifest_dir = corpus_dir / "wavedata"
     for manifest in sorted(raw_manifest_dir.iterdir()):
         m_name = manifest.stem
         if m_name in RU_OPEN_STT_DEV_PARTS:
             target = raw_dev_manifest
-        elif m_name in RU_OPEN_STT_TEST_PARTS:
-            target = raw_test_manifest
         elif m_name in RU_OPEN_STT_TRAIN_PARTS:
             target = raw_train_manifest
+        elif m_name in RU_OPEN_STT_TEST_YOUTUBE_PARTS:
+            target = raw_test_youtube_manifest
+        elif m_name in RU_OPEN_STT_TEST_COMMON_VOICE_PARTS:
+            target = raw_test_common_voice_manifest
+        elif m_name in RU_OPEN_STT_TEST_BURIY_PARTS:
+            target = raw_test_buriy_manifest
         else:
             continue
         print(f"----Start reading {m_name}...")
@@ -96,9 +107,18 @@ def _read_raw_manifest(corpus_dir):
                 target.add((w_key, wav, text_info[w_key]))
         print(f"----Finish reading {m_name}!")
     print(
-        f"Finish reading raw manifests, total samples: {len(raw_train_manifest) + len(raw_dev_manifest) + len(raw_test_manifest)}!"
+        f"Finish reading raw manifests, total samples: {len(raw_train_manifest) + len(raw_dev_manifest) + len(raw_test_youtube_manifest) + len(raw_test_common_voice_manifest) + len(raw_test_buriy_manifest)}!"
     )
-    return raw_train_manifest, raw_dev_manifest, raw_test_manifest
+    return raw_train_manifest, raw_dev_manifest, raw_test_youtube_manifest, raw_test_common_voice_manifest, raw_test_buriy_manifest
+
+
+def too_short_or_too_long(segment):
+    if segment.duration < 1.0 or segment.duration > 20.0:
+        print(
+            f"Exclude segment with ID {segment.id} from training. Duration: {segment.duration}"
+        )
+        return True
+    return False
 
 
 def prepare_ru_open_stt(
@@ -122,17 +142,17 @@ def prepare_ru_open_stt(
         output_dir.mkdir(parents=True, exist_ok=True)
 
     manifests = defaultdict(dict)
-    raw_train_manifest, raw_dev_manifest, raw_test_manifest = _read_raw_manifest(
+    raw_train_manifest, raw_dev_manifest, raw_test_youtube_manifest, raw_test_common_voice_manifest, raw_test_buriy_manifest = _read_raw_manifest(
         corpus_dir
     )
     for split, raw_manifest in zip(
-        ["train", "dev", "test"],
-        [raw_train_manifest, raw_dev_manifest, raw_test_manifest],
+        ["train", "dev", "test_youtube", "test_common_voice", "test_buriy"],
+        [raw_train_manifest, raw_dev_manifest, raw_test_youtube_manifest, raw_test_common_voice_manifest, raw_test_buriy_manifest],
     ):
         manifests[split] = {"recordings": [], "supervisions": []}
         with ProcessPoolExecutor(num_jobs) as ex:
             for recording, segment in tqdm(
-                ex.map(parse_utterance, raw_manifest),
+                ex.map(parse_utterance, raw_manifest, repeat(split)),
                 desc=f"Processing RU_OPEN_STT {split} manifests",
             ):
                 if recording is not None:
@@ -172,9 +192,12 @@ def preprocess(text):
 
 def parse_utterance(
     utt: Tuple,
+    split,
 ) -> Tuple[Recording, Dict[str, List[SupervisionSegment]]]:
     try:
         recording = Recording.from_file(utt[1], recording_id=utt[0], force_opus_sampling_rate=16000)
+        if split == "train" and too_short_or_too_long(recording):
+            return None, None
         validate_recording(recording)
         segment = SupervisionSegment(
             id=utt[0],

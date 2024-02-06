@@ -382,7 +382,7 @@ def get_default_audio_backend() -> AudioBackend:
         [
             # First handle special cases: OPUS and SPHERE (SPHERE may be encoded with shorten,
             #   which can only be decoded by binaries "shorten" and "sph2pipe").
-            FfmpegSubprocessOpusBackend(),
+            # FfmpegSubprocessOpusBackend(),
             Sph2pipeSubprocessBackend(),
             # New FFMPEG backend available only in torchaudio 2.0.x+
             TorchaudioFFMPEGBackend(),
