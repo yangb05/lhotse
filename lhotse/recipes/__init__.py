@@ -78,3 +78,4 @@ from .voxpopuli import download_voxpopuli, prepare_voxpopuli
 from .wenet_speech import prepare_wenet_speech
 from .xbmu_amdo31 import download_xbmu_amdo31, prepare_xbmu_amdo31
 from .yesno import download_yesno, prepare_yesno
+from .sada import prepare_sada
