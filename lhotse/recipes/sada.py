@@ -100,6 +100,7 @@ def prepare_sada(
     """
     corpus_dir = Path(corpus_dir)
     assert corpus_dir.is_dir(), f"No such directory: {corpus_dir}"
+    utterance_dir = Path(utterance_dir)
     utterance_dir.mkdir(parents=True, exist_ok=True)
     if output_dir is not None:
         output_dir = Path(output_dir)
