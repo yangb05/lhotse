@@ -42,24 +42,18 @@ def make_utterance(audio_file, utter_file, utter_offset, num_samples):
 
 
 # make recording
-def make_recording(utter_id, utter_file, duration, num_samples):
-    recording = Recording(
-    id=utter_id,
-    sources=[AudioSource(type='file', channels=[0], source=str(utter_file))],
-    sampling_rate=16000,
-    duration=(duration),
-    num_samples=num_samples,  
-    )
+def make_recording(utter_file):
+    recording = Recording.from_file(utter_file)
     return recording
 
 
 # make supervision
-def make_supervision(row, utter_id, duration):
+def make_supervision(row, recording):
     supervision = SupervisionSegment(
-        id=utter_id,
-        recording_id=utter_id,
+        id=recording.id,
+        recording_id=recording.id,
         start=0,
-        duration=duration,
+        duration=recording.duration,
         channel=0,
         text=row["ProcessedText"],
         language=row["SpeakerDialect"],
@@ -72,7 +66,6 @@ def make_supervision(row, utter_id, duration):
 def make_manifest(row, utterance_dir, corpus_dir):
     _, row = row
     sample_rate = 16000
-    utter_id = row["SegmentID"]
     utter_start = round(row["SegmentStart"], 3)
     utter_offset = int(utter_start * sample_rate)
     duration = round(row["SegmentEnd"] - row["SegmentStart"], 3)
@@ -80,8 +73,8 @@ def make_manifest(row, utterance_dir, corpus_dir):
     audio_file = corpus_dir / row["FileName"]
     utter_file = utterance_dir / f"{row['SegmentID']}.wav"
     make_utterance(audio_file, utter_file, utter_offset, num_samples)
-    recording = make_recording(utter_id, utter_file, duration, num_samples)
-    supervision = make_supervision(row, utter_id, duration)
+    recording = make_recording(utter_file)
+    supervision = make_supervision(row, recording)
     return recording, supervision
 
 
