@@ -45,7 +45,7 @@ def make_utterance(audio_file, utter_file, utter_offset, num_samples):
 def make_recording(utter_id, utter_file, duration, num_samples):
     recording = Recording(
     id=utter_id,
-    sources=[AudioSource(type='file', channels=[0], source=utter_file)],
+    sources=[AudioSource(type='file', channels=[0], source=str(utter_file))],
     sampling_rate=16000,
     duration=(duration),
     num_samples=num_samples,  
@@ -54,11 +54,11 @@ def make_recording(utter_id, utter_file, duration, num_samples):
 
 
 # make supervision
-def make_supervision(row, utter_id, utter_start, duration):
+def make_supervision(row, utter_id, duration):
     supervision = SupervisionSegment(
         id=utter_id,
         recording_id=utter_id,
-        start=utter_start,
+        start=0,
         duration=duration,
         channel=0,
         text=row["ProcessedText"],
@@ -81,7 +81,7 @@ def make_manifest(row, utterance_dir, corpus_dir):
     utter_file = utterance_dir / f"{row['SegmentID']}.wav"
     make_utterance(audio_file, utter_file, utter_offset, num_samples)
     recording = make_recording(utter_id, utter_file, duration, num_samples)
-    supervision = make_supervision(row, utter_id, utter_start, duration)
+    supervision = make_supervision(row, utter_id, duration)
     return recording, supervision
 
 
